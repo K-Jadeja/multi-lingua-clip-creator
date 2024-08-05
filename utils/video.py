@@ -2,7 +2,8 @@ import math
 import subprocess
 from os import path
 import cv2 as cv
-
+import shlex
+import os
 
 def get_video_duration(video_path):
     cap = cv.VideoCapture(video_path)
@@ -98,35 +99,60 @@ def crop_video_horizontal_to_vertical(video_path, output_path):
 
 
 def add_subtitles_to_video(video_path, subtitles_path, output_path):
-    """
-    Add subtitles to a video using FFmpeg.
-
-    Args:
-        video_path (str): Path to the input video file.
-        subtitles_path (str): Path to the subtitles file (SRT format).
-        output_path (str): Path to save the output video file with subtitles.
-
-    Returns:
-        str: Path to the output video file with subtitles.
-    """
     try:
-        # Check if input video and subtitles files exist
-        if not path.exists(video_path):
-            raise FileNotFoundError(f"Video file not found: {video_path}")
-        if not path.exists(subtitles_path):
-            raise FileNotFoundError(f"Subtitles file not found: {subtitles_path}")
+        # Convert to absolute paths
+        video_path = os.path.abspath(video_path)
+        subtitles_path = os.path.abspath(subtitles_path)
+        output_path = os.path.abspath(output_path)
+        font_path = os.path.abspath("assets/fonts/Permanent_Marker/PermanentMarker-Regular.ttf")
 
+        # Check if input video, subtitles, and font files exist
+        if not os.path.exists(video_path):
+            raise FileNotFoundError(f"Video file not found: {video_path}")
+        if not os.path.exists(subtitles_path):
+            raise FileNotFoundError(f"Subtitles file not found: {subtitles_path}")
+        if not os.path.exists(font_path):
+            raise FileNotFoundError(f"Font file not found: {font_path}")
+
+        # Ensure the output directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+        # Escape the subtitle path for FFmpeg
+        escaped_subtitles_path = subtitles_path.replace("\\", "\\\\").replace(":", "\\:")
+        escaped_font_path = font_path.replace("\\", "\\\\").replace(":", "\\:")
+
+        # Construct the FFmpeg command
+        # PERMANENT MARKER AND INDIE FLOWER
         ffmpeg_cmd = [
             'ffmpeg',
             '-i', video_path,
-            '-y',  # Overwrite output file if exists
-            '-vf',
-            f"subtitles='{subtitles_path}':force_style='FontName=Arial,FontSize=12,PrimaryColour=&Hffffff&,Bold=1,MarginV=+40'",
-            '-c:a', 'copy',  # Copy audio stream without re-encoding
-            output_path,
+            '-y',
+            '-vf', f"subtitles=filename='{escaped_subtitles_path}':force_style='FontName={escaped_font_path},FontSize=12,PrimaryColour=&Hffffff,Bold=1,MarginV=40'",
+            '-c:a', 'copy',
+            output_path
         ]
-        subprocess.run(ffmpeg_cmd, check=True)
+
+       # Print debugging information
+        print("=== Debugging Information ===")
+        print(f"Video path: {video_path}")
+        print(f"Subtitles path: {subtitles_path}")
+        print(f"Font path: {font_path}")
+        print(f"Output path: {output_path}")
+        print(f"FFmpeg command: {' '.join(ffmpeg_cmd)}")
+
+        # Run the command
+        result = subprocess.run(ffmpeg_cmd, check=True, capture_output=True, text=True)
+
+        print(f"Subtitles added successfully. Output saved to: {output_path}")
         return output_path
+
     except subprocess.CalledProcessError as e:
-        print(f"Error executing FFmpeg command for adding subtitles: {e}")
+        print(f"Error executing FFmpeg command for adding subtitles:")
+        print(f"Command: {e.cmd}")
+        print(f"Return code: {e.returncode}")
+        print(f"stdout: {e.stdout}")
+        print(f"stderr: {e.stderr}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred while adding subtitles: {str(e)}")
         return None

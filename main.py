@@ -8,6 +8,7 @@ from utils.text import generate_subtitle_file, translate_segments_to
 from utils.video import add_subtitles_to_video, crop_video_horizontal_to_vertical, overlay_watermark, \
     get_video_duration, cut_video, print_part_on_video
 
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 def process_video(video_url, languages):
     # Download the video from YouTube
@@ -19,8 +20,8 @@ def process_video(video_url, languages):
     # Transcribe the audio to get language and segments
     video_language, segments = transcribe(file_path_wav)
 
-    # Get the base filename and extension
-    file_name, _ = os.path.splitext(os.path.basename(file_path_wav))
+    # Use a simple file name to avoid special character issues
+    file_name = "video"
 
     # Crop the video horizontally to vertical orientation
     video_vertical = crop_video_horizontal_to_vertical(file_path_webm,
@@ -37,26 +38,39 @@ def process_video(video_url, languages):
             # Use original segments if the language matches
             subtitle_file = generate_subtitle_file(input_video_name=file_name, language=language, segments=segments)
 
-        # Add subtitles to the horizontal video
+        # Add subtitles to the vertical video
         video_vertical_with_subtitles = add_subtitles_to_video(video_vertical, subtitle_file,
                                                                f'./temp/{file_name}.subtitles.vertical.{language}.mp4')
+        
+        if video_vertical_with_subtitles is None:
+            print(f"Failed to add subtitles to vertical video for language {language}. Skipping further processing for this language.")
+            continue
 
         # Add subtitles to the full video
         video_with_subtitles = add_subtitles_to_video(file_path_webm, subtitle_file,
                                                       f'./temp/{file_name}.subtitles.full.{language}.mp4')
+        
+        if video_with_subtitles is None:
+            print(f"Failed to add subtitles to full video for language {language}. Skipping further processing for this language.")
+            continue
 
-        video_vertical_with_watermark = overlay_watermark(video_vertical_with_subtitles,
-                                                          f'./static/watermark.vertical.{language}.jpeg',
-                                                          f'./temp/{file_name}.watermark.subtitles.vertical.{language}.mp4')
-        video_with_watermark = overlay_watermark(video_with_subtitles, f'./static/watermark.full.{language}.jpeg',
-                                                 f'./temp/{file_name}.watermark.subtitles.full.{language}.mp4',
-                                                 '[1][0]scale2ref=oh*mdar:ih*0.2[logo][video];[video][logo]overlay')
+        # video_vertical_with_watermark = overlay_watermark(video_vertical_with_subtitles,
+        #                                                   f'./static/watermark.vertical.{language}.jpeg',
+        #                                                   f'./temp/{file_name}.watermark.subtitles.vertical.{language}.mp4')
+        # video_with_watermark = overlay_watermark(video_with_subtitles, f'./static/watermark.full.{language}.jpeg',
+        #                                          f'./temp/{file_name}.watermark.subtitles.full.{language}.mp4',
+        #                                          '[1][0]scale2ref=oh*mdar:ih*0.2[logo][video];[video][logo]overlay')
 
-        move_to(video_vertical_with_watermark,
-                       f'./output/{file_name}.watermark.subtitles.vertical.{language}.mp4')
-        move_to(video_with_watermark, f'./output/{file_name}.watermark.subtitles.full.{language}.mp4')
+        # move_to(video_vertical_with_watermark,
+        #         f'./output/{file_name}.watermark.subtitles.vertical.{language}.mp4')
+        # move_to(video_with_watermark, f'./output/{file_name}.watermark.subtitles.full.{language}.mp4')
+        
+        move_to(video_vertical_with_subtitles,
+                f'./output/{file_name}.subtitles.vertical.{language}.mp4')
+        move_to(video_with_subtitles, f'./output/{file_name}.subtitles.full.{language}.mp4')
 
-        seconds = get_video_duration(f'./output/{file_name}.watermark.subtitles.vertical.{language}.mp4')
+        # seconds = get_video_duration(f'./output/{file_name}.watermark.subtitles.vertical.{language}.mp4')
+        seconds = get_video_duration(f'./output/{file_name}.subtitles.vertical.{language}.mp4')
 
         for i in range(ceil(seconds // 30 / 2)):
             index = str(i + 1)
@@ -66,16 +80,24 @@ def process_video(video_url, languages):
                 part = f'{index} часть'
             else:
                 part = f'{index} part'
-            cutted_video_path = cut_video(f'./output/{file_name}.watermark.subtitles.vertical.{language}.mp4', start,
+            # cutted_video_path = cut_video(f'./output/{file_name}.watermark.subtitles.vertical.{language}.mp4', start,
+            #                               end,
+            #                               f'./output/{file_name}.{index}.watermark.subtitles.vertical.{language}.mp4')
+            # print_part_on_video(cutted_video_path, part,
+            #                     f'./output/{file_name}.{index}.part.watermark.subtitles.vertical.{language}.mp4')
+            
+            cutted_video_path = cut_video(f'./output/{file_name}.subtitles.vertical.{language}.mp4', start,
                                           end,
-                                          f'./output/{file_name}.{index}.watermark.subtitles.vertical.{language}.mp4')
+                                          f'./output/{file_name}.{index}.subtitles.vertical.{language}.mp4')
             print_part_on_video(cutted_video_path, part,
-                                f'./output/{file_name}.{index}.part.watermark.subtitles.vertical.{language}.mp4')
+                                f'./output/{file_name}.{index}.part.subtitles.vertical.{language}.mp4')
             os.remove(cutted_video_path)
 
     # Clean up temporary files
     clear_temp_dir()
     print('Processing complete.')
+
+
 
 
 def main():

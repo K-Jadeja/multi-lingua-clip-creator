@@ -1,8 +1,7 @@
 import subprocess
 from os.path import splitext
-
-from faster_whisper import WhisperModel
-
+import whisper
+import re
 
 def convert_webm_to_wav(input_file):
     """
@@ -35,9 +34,14 @@ def convert_webm_to_wav(input_file):
         print(f"Error executing ffmpeg command: {e}")
 
 
+def split_into_phrases(text, max_words=3):
+    words = text.split()
+    phrases = [' '.join(words[i:i+max_words]) for i in range(0, len(words), max_words)]
+    return phrases
+
 def transcribe(file_path):
     """
-    Transcribes audio from a WAV file using a WhisperModel.
+    Transcribes audio from a WAV file using the Whisper model.
 
     Args:
         file_path (str): Path to the input WAV file.
@@ -46,20 +50,47 @@ def transcribe(file_path):
         tuple: A tuple containing the detected language (str) and a list of transcribed segments.
     """
     try:
-        # Initialize WhisperModel with 'large-v3' configuration
-        model = WhisperModel("large-v3", compute_type='auto', cpu_threads=8, num_workers=8)
+        # Load the Whisper model
+        model = whisper.load_model("base")
 
-        # Transcribe audio file
-        segments, info = model.transcribe(file_path)
+        # Transcribe the audio file
+        print(f"Transcribing {file_path}...")
+        result = model.transcribe(file_path)
 
-        # Extract language from info
-        language = info[0]
+        # Extract language
+        print(f"Detected language: {result['language']}")
+        language = result['language']
 
-        # Convert segments to a list
-        segments = list(segments)
+        # Extract and split segments
+        print("Transcribed segments:")
+        segments = []
+        for segment in result['segments']:
+            print("=======================================")
+            print(segment)
+            phrases = split_into_phrases(segment['text'])
+            start = segment['start']
+            duration = (segment['end'] - segment['start']) / len(phrases)
+            for i, phrase in enumerate(phrases):
+                segments.append({
+                    'start': start + i * duration,
+                    'end': start + (i + 1) * duration,
+                    'text': phrase
+                })
 
         return language, segments
 
     except Exception as e:
         print(f"Error during transcription: {e}")
         return None, []
+
+
+# Example usage
+if __name__ == "__main__":
+    input_file = "path/to/your/input.webm"
+    wav_file = convert_webm_to_wav(input_file)
+    if wav_file:
+        language, segments = transcribe(wav_file)
+        print(f"Detected language: {language}")
+        print("Transcribed segments:")
+        for segment in segments:
+            print(segment)
